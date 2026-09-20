@@ -87,7 +87,9 @@ void printStatus() {
     Serial.print(" velocity_rad_s=");
     Serial.print(motorGetVelocity(), 3);
     Serial.print(" command_rad_s=");
-    Serial.println(appGetVelocityCommand(), 3);
+    Serial.print(appGetVelocityCommand(), 3);
+    Serial.print(" driver_fault=");
+    Serial.println(driverHasFault() ? "yes" : "no");
 }
 
 void handleSerialCommand(const SerialCommand& command) {

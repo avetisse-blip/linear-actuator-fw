@@ -18,6 +18,7 @@ BLDCDriver3PWM driver(board_config::DRIVER_IN1_PIN,
 BLDCMotor motor(motor_config::MOTOR_POLE_PAIRS);
 
 bool driver_initialized = false;
+bool driver_control_initialized = false;
 bool motor_initialized = false;
 bool foc_aligned = false;
 bool running = false;
@@ -48,8 +49,41 @@ void disableOutputs() {
 }
 
 void setFault(MotorFault new_fault) {
+    if (new_fault == MotorFault::DRIVER_FAULT &&
+        fault != MotorFault::DRIVER_FAULT) {
+        Serial.println("DRV8313 FAULT");
+    }
     fault = new_fault;
     disableOutputs();
+}
+
+void driverControlInit() {
+    // Keep the bridge disabled while the DRV8313 control pins are configured.
+    digitalWrite(board_config::DRIVER_ENABLE_PIN, LOW);
+    pinMode(board_config::DRIVER_ENABLE_PIN, OUTPUT);
+
+    pinMode(board_config::DRIVER_FAULT_PIN, INPUT_PULLUP);
+
+    digitalWrite(board_config::DRIVER_RESET_PIN,
+                 board_config::DRIVER_RESET_ACTIVE_LEVEL);
+    pinMode(board_config::DRIVER_RESET_PIN, OUTPUT);
+
+    digitalWrite(board_config::DRIVER_SLEEP_PIN,
+                 board_config::DRIVER_SLEEP_ACTIVE_LEVEL);
+    pinMode(board_config::DRIVER_SLEEP_PIN, OUTPUT);
+
+    digitalWrite(board_config::DRIVER_SLEEP_PIN, HIGH);
+    delay(board_config::DRIVER_WAKE_DELAY_MS);
+    digitalWrite(board_config::DRIVER_RESET_PIN, HIGH);
+    delayMicroseconds(board_config::DRIVER_RESET_PULSE_US);
+
+    driver_control_initialized = true;
+
+    Serial.println("DRV8313 control initialized");
+    Serial.print("nFAULT: ");
+    Serial.println(driverHasFault() ? "FAULT" : "OK");
+    Serial.println("nRESET: HIGH");
+    Serial.println("nSLEEP: HIGH");
 }
 
 bool probeAs5600() {
@@ -78,9 +112,18 @@ const char* directionText(Direction direction) {
 
 bool motorInit() {
     fault = MotorFault::NONE;
+    driver_initialized = false;
+    driver_control_initialized = false;
+    motor_initialized = false;
     foc_aligned = false;
     running = false;
     target_velocity_rad_s = 0.0F;
+
+    driverControlInit();
+    if (driverHasFault()) {
+        setFault(MotorFault::DRIVER_FAULT);
+        return false;
+    }
 
     Wire.setSDA(board_config::ENCODER_SDA_PIN);
     Wire.setSCL(board_config::ENCODER_SCL_PIN);
@@ -150,8 +193,18 @@ bool motorStart() {
 
     motor.enable();
 
+    if (driverHasFault()) {
+        setFault(MotorFault::DRIVER_FAULT);
+        return false;
+    }
+
     if (!foc_aligned) {
-        if (motor.initFOC() == 0) {
+        const int foc_result = motor.initFOC();
+        if (driverHasFault()) {
+            setFault(MotorFault::DRIVER_FAULT);
+            return false;
+        }
+        if (foc_result == 0) {
             setFault(MotorFault::FOC_ALIGNMENT_FAILED);
             return false;
         }
@@ -185,6 +238,46 @@ void motorStop() {
 
 void motorSetVelocity(float velocity_rad_s) {
     target_velocity_rad_s = clampVelocity(velocity_rad_s);
+}
+
+bool driverHasFault() {
+    return driver_control_initialized &&
+           digitalRead(board_config::DRIVER_FAULT_PIN) ==
+               board_config::DRIVER_FAULT_ACTIVE_LEVEL;
+}
+
+bool driverResetFault() {
+    if (!driver_control_initialized) {
+        return false;
+    }
+
+    disableOutputs();
+    digitalWrite(board_config::DRIVER_RESET_PIN,
+                 board_config::DRIVER_RESET_ACTIVE_LEVEL);
+    delayMicroseconds(board_config::DRIVER_RESET_PULSE_US);
+    digitalWrite(board_config::DRIVER_RESET_PIN, HIGH);
+    delayMicroseconds(board_config::DRIVER_RESET_PULSE_US);
+    return !driverHasFault();
+}
+
+void driverSleep() {
+    if (!driver_control_initialized) {
+        return;
+    }
+
+    disableOutputs();
+    digitalWrite(board_config::DRIVER_SLEEP_PIN,
+                 board_config::DRIVER_SLEEP_ACTIVE_LEVEL);
+}
+
+bool driverWake() {
+    if (!driver_control_initialized) {
+        return false;
+    }
+
+    digitalWrite(board_config::DRIVER_SLEEP_PIN, HIGH);
+    delay(board_config::DRIVER_WAKE_DELAY_MS);
+    return !driverHasFault();
 }
 
 float motorGetVelocity() {
@@ -223,6 +316,8 @@ const char* motorGetFaultText() {
             return "AS5600 not found at I2C address 0x36";
         case MotorFault::ENCODER_READ_FAILED:
             return "AS5600 read failed";
+        case MotorFault::DRIVER_FAULT:
+            return "DRV8313 nFAULT asserted (LOW)";
         case MotorFault::DRIVER_INIT_FAILED:
             return "3PWM driver initialization failed";
         case MotorFault::MOTOR_INIT_FAILED:
@@ -238,6 +333,11 @@ const char* motorGetFaultText() {
 
 void motorControlLoop() {
     if (!running || fault != MotorFault::NONE) {
+        return;
+    }
+
+    if (driverHasFault()) {
+        setFault(MotorFault::DRIVER_FAULT);
         return;
     }
 

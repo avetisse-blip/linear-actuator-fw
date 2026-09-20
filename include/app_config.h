@@ -5,7 +5,7 @@
 namespace app_config {
 
 inline constexpr char FIRMWARE_NAME[] = "linear-actuator-first-bringup";
-inline constexpr char FIRMWARE_VERSION[] = "0.2.0";
+inline constexpr char FIRMWARE_VERSION[] = "0.3.0";
 
 inline constexpr uint32_t SERIAL_BAUD = 115200U;
 inline constexpr uint32_t SERIAL_STARTUP_WAIT_MS = 1000U;

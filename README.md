@@ -36,6 +36,9 @@ All grounds must be common.
 | IN2 | D8 | PA9 / TIM1_CH2 |
 | IN3 | D2 | PA10 / TIM1_CH3 |
 | EN | D4 | PB5 |
+| nFT / nFAULT | D5 | PB4 |
+| nRT / nRESET | D6 | PB10 |
+| nSP / nSLEEP | D9 | PC7 |
 | GND | GND | GND |
 
 Connect Mini `+/-` only to the laboratory PSU. Leave the Mini `3V3` output
@@ -50,6 +53,10 @@ unconnected. Connect the motor phases to `M1/M2/M3` in any fixed order.
 
 AS5600 P1 physical order is `VCC - GND - SCL - SDA`; P2 is unused. The onboard
 blue USER button B1 is connected to PC13.
+
+`nFT`, `nRT`, and `nSP` are active-low. Firmware configures `nFT` as an input
+with pull-up, and drives `nRT` and `nSP` high for normal operation. D0/PA3 and
+D1/PA2 are not used as driver GPIO and remain reserved for USART2.
 
 The more detailed wiring checklist is in
 [`../WIRING_FIRST_RUN.md`](../WIRING_FIRST_RUN.md).
@@ -91,7 +98,8 @@ pio device monitor -b 115200
 8. A later press returns to RUN without repeating alignment.
 
 If the firmware enters `FAULT`, switch off the motor PSU before changing any
-wiring. There is no automatic restart from a fault.
+wiring. A LOW level on `nFT` immediately disables motor outputs and enters the
+existing `FAULT` state. There is no automatic driver reset or motor restart.
 
 ## Serial commands
 
@@ -111,6 +119,10 @@ the opposite direction. The selected value is retained through `STOP`; outputs
 remain disabled until `START` or a USER-button press. The first start after each
 reset still performs FOC alignment and therefore moves the rotor.
 
+`STATUS` includes `driver_fault=yes/no`. Low-level APIs for a manual DRV8313
+reset and sleep/wake are present in `motor_control`, but no serial commands call
+them yet.
+
 ## Code layout
 
 - `include/board_config.h`: pins and board electrical assumptions;
@@ -122,13 +134,13 @@ reset still performs FOC alignment and therefore moves the rotor.
 
 ## Verified build
 
-Version `0.2.0` was built successfully on 2026-09-19 with PlatformIO Core
+Version `0.3.0` was built successfully on 2026-09-20 with PlatformIO Core
 6.2.0, ST STM32 platform 19.7.1, STM32 Arduino Core 2.12.0 and SimpleFOC
-2.4.0. The release image uses approximately 66 kB Flash and 3.1 kB RAM.
+2.4.0. The release image uses 66,340 bytes Flash and 3,056 bytes RAM.
 
-Version `0.1.1` was verified on the physical motor: AS5600 detection, FOC
-alignment, 1 rad/s rotation and button-controlled stop all passed. The new
-serial commands and velocity filter in `0.2.0` still require the bench test.
+Version `0.2.0` was verified on the physical motor in both directions, including
+FOC alignment, serial speed commands and stop/restart. The added DRV8313
+control/status pins in `0.3.0` still require the bench test.
 
 ## Important configuration notes
 

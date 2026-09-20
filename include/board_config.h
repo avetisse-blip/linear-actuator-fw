@@ -11,6 +11,18 @@ inline constexpr uint32_t DRIVER_IN1_PIN = PA8;   // D7, TIM1_CH1
 inline constexpr uint32_t DRIVER_IN2_PIN = PA9;   // D8, TIM1_CH2
 inline constexpr uint32_t DRIVER_IN3_PIN = PA10;  // D2, TIM1_CH3
 inline constexpr uint32_t DRIVER_ENABLE_PIN = PB5;  // D4
+inline constexpr uint32_t DRIVER_FAULT_PIN = PB4;   // D5, nFT / nFAULT
+inline constexpr uint32_t DRIVER_RESET_PIN = PB10;  // D6, nRT / nRESET
+inline constexpr uint32_t DRIVER_SLEEP_PIN = PC7;   // D9, nSP / nSLEEP
+
+inline constexpr int DRIVER_FAULT_ACTIVE_LEVEL = LOW;
+inline constexpr int DRIVER_RESET_ACTIVE_LEVEL = LOW;
+inline constexpr int DRIVER_SLEEP_ACTIVE_LEVEL = LOW;
+inline constexpr uint32_t DRIVER_WAKE_DELAY_MS = 2U;
+inline constexpr uint32_t DRIVER_RESET_PULSE_US = 20U;
+
+// D0/PA3 and D1/PA2 are intentionally not assigned to driver or sensor GPIO;
+// they remain reserved for the USART2 connection.
 
 inline constexpr uint32_t ENCODER_SCL_PIN = PB8;  // D15, I2C1_SCL
 inline constexpr uint32_t ENCODER_SDA_PIN = PB9;  // D14, I2C1_SDA
